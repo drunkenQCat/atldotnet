@@ -624,82 +624,82 @@ namespace ATL.AudioData
                 {
                     case FrameHeader.TYPE.Counter:
                     case FrameHeader.TYPE.Size:
-                    {
-                        delta = header.Type switch
                         {
-                            FrameHeader.TYPE.Counter => action switch
+                            delta = header.Type switch
                             {
-                                ACTION.Add => 1,
-                                ACTION.Delete => -1,
-                                _ => 0
-                            },
-                            FrameHeader.TYPE.Size => deltaSize,
-                            _ => delta
-                        };
-
-                        s.Seek(header.Position + offsetPositionCorrection, SeekOrigin.Begin);
-
-                        value = addToValue(header.Value, delta, out var updatedValue);
-
-                        if (0 == value.Length) throw new NotSupportedException("Value type not supported for " + zoneName + "@" + header.Position + " : " + header.Value.GetType());
-
-                        // The very same frame header is referenced from another frame and must be updated to its new value
-                        updateAllHeadersAtPosition(header.Position, header.Type, updatedValue);
-
-                        if (!header.IsLittleEndian) Array.Reverse(value);
-
-                        s.Write(value, 0, value.Length);
-                        break;
-                    }
-                    case FrameHeader.TYPE.Index:
-                    case FrameHeader.TYPE.RelativeIndex:
-                    {
-                        long headerPosition = header.Position + offsetPositionCorrection;
-                        long headerOffsetCorrection = 0;
-                        if (FrameHeader.TYPE.RelativeIndex == header.Type)
-                        {
-                            headerOffsetCorrection = header.RelativityOffset > 0 ? header.RelativityOffset : headerPosition;
-                        }
-
-                        value = null;
-                        if (action != ACTION.Delete)
-                        {
-                            value = header.Value switch
-                            {
-                                long headerValue => BitConverter.GetBytes(headerValue + offsetValueCorrection -
-                                                                          headerOffsetCorrection),
-                                int headerValue => BitConverter.GetBytes((int)(headerValue + offsetValueCorrection -
-                                                                               headerOffsetCorrection)),
-                                uint headerValue => BitConverter.GetBytes((uint)(headerValue + offsetValueCorrection -
-                                    headerOffsetCorrection)),
-                                ushort headerValue => BitConverter.GetBytes((ushort)(headerValue + offsetValueCorrection -
-                                    headerOffsetCorrection)),
-                                // WARNING : will look awful if applying deltas make the value > 255
-                                byte headerValue => new[] { (byte)(headerValue + offsetValueCorrection - headerOffsetCorrection) },
-                                _ => value
+                                FrameHeader.TYPE.Counter => action switch
+                                {
+                                    ACTION.Add => 1,
+                                    ACTION.Delete => -1,
+                                    _ => 0
+                                },
+                                FrameHeader.TYPE.Size => deltaSize,
+                                _ => delta
                             };
+
+                            s.Seek(header.Position + offsetPositionCorrection, SeekOrigin.Begin);
+
+                            value = addToValue(header.Value, delta, out var updatedValue);
+
+                            if (0 == value.Length) throw new NotSupportedException("Value type not supported for " + zoneName + "@" + header.Position + " : " + header.Value.GetType());
+
+                            // The very same frame header is referenced from another frame and must be updated to its new value
+                            updateAllHeadersAtPosition(header.Position, header.Type, updatedValue);
 
                             if (!header.IsLittleEndian) Array.Reverse(value);
+
+                            s.Write(value, 0, value.Length);
+                            break;
                         }
-                        else
+                    case FrameHeader.TYPE.Index:
+                    case FrameHeader.TYPE.RelativeIndex:
                         {
-                            value = header.Value switch
+                            long headerPosition = header.Position + offsetPositionCorrection;
+                            long headerOffsetCorrection = 0;
+                            if (FrameHeader.TYPE.RelativeIndex == header.Type)
                             {
-                                long => BitConverter.GetBytes((long)0),
-                                int => BitConverter.GetBytes(0),
-                                uint => BitConverter.GetBytes((uint)0),
-                                ushort => BitConverter.GetBytes((ushort)0),
-                                byte => BitConverter.GetBytes((byte)0),
-                                _ => value
-                            };
+                                headerOffsetCorrection = header.RelativityOffset > 0 ? header.RelativityOffset : headerPosition;
+                            }
+
+                            value = null;
+                            if (action != ACTION.Delete)
+                            {
+                                value = header.Value switch
+                                {
+                                    long headerValue => BitConverter.GetBytes(headerValue + offsetValueCorrection -
+                                                                              headerOffsetCorrection),
+                                    int headerValue => BitConverter.GetBytes((int)(headerValue + offsetValueCorrection -
+                                                                                   headerOffsetCorrection)),
+                                    uint headerValue => BitConverter.GetBytes((uint)(headerValue + offsetValueCorrection -
+                                        headerOffsetCorrection)),
+                                    ushort headerValue => BitConverter.GetBytes((ushort)(headerValue + offsetValueCorrection -
+                                        headerOffsetCorrection)),
+                                    // WARNING : will look awful if applying deltas make the value > 255
+                                    byte headerValue => new[] { (byte)(headerValue + offsetValueCorrection - headerOffsetCorrection) },
+                                    _ => value
+                                };
+
+                                if (!header.IsLittleEndian) Array.Reverse(value);
+                            }
+                            else
+                            {
+                                value = header.Value switch
+                                {
+                                    long => BitConverter.GetBytes((long)0),
+                                    int => BitConverter.GetBytes(0),
+                                    uint => BitConverter.GetBytes((uint)0),
+                                    ushort => BitConverter.GetBytes((ushort)0),
+                                    byte => new byte[] { (byte)0 },
+                                    _ => value
+                                };
+                            }
+
+                            if (null == value) throw new NotSupportedException("Value type not supported for index in " + zoneName + "@" + header.Position + " : " + header.Value.GetType());
+
+                            s.Seek(headerPosition, SeekOrigin.Begin);
+                            s.Write(value, 0, value.Length); // Index & relative index types
+                            break;
                         }
-
-                        if (null == value) throw new NotSupportedException("Value type not supported for index in " + zoneName + "@" + header.Position + " : " + header.Value.GetType());
-
-                        s.Seek(headerPosition, SeekOrigin.Begin);
-                        s.Write(value, 0, value.Length); // Index & relative index types
-                        break;
-                    }
                 }
             } // Loop through headers
 
